@@ -1,1 +1,50 @@
+name: build-decompiler-linux-arm64
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout Ghidra source
+        uses: actions/checkout@v4
+        with:
+          repository: NationalSecurityAgency/ghidra
+          ref: Ghidra_12.1.2_build
+          fetch-depth: 1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Verify native toolchain
+        run: |
+          gcc --version | head -1
+          uname -m
+
+      - name: Run fetchDependencies init script
+        run: ./gradlew -I gradle/support/fetchDependencies.gradle help
+
+      - name: Build Decompiler natives for linux_arm_64
+        run: ./gradlew buildNatives_linux_arm_64
+
+      - name: Package linux_arm_64 binary
+        run: |
+          DEST=dist/os/linux_arm_64
+          mkdir -p "$DEST"
+          cp Ghidra/Features/Decompiler/build/os/linux_arm_64/decompile "$DEST/"
+          cp Ghidra/Features/Decompiler/build/os/linux_arm_64/sleigh    "$DEST/"
+          chmod +x "$DEST"/*
+          ls -la "$DEST"
+          file "$DEST"/*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghidra-decompiler-linux-arm64
+          path: dist/
